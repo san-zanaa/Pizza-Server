@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { MongoClient } from 'mongodb';
@@ -22,6 +23,7 @@ export async function connectToMongoDB() {
 const connectedClient = await connectToMongoDB();
 const database = connectedClient.db("pizzahub");
 const users = database.collection("user");
+const menu = database.collection("menu");
 
 app.get('/', (req, res) => {
   res.send('Hello World!')
@@ -31,6 +33,20 @@ app.get('/users', async (req, res) => {
     const cursor = users.find({});
     const result = await cursor.toArray();
     res.send(result);
+})
+
+app.get('/menu', async (req, res) => {
+    const cursor = menu.find({});
+    const result = await cursor.toArray();
+    res.send(result);
+})
+
+app.get('/menu/:slug', async (req, res) => {
+    const item = await menu.findOne({ slug: req.params.slug });
+    if (!item) {
+        return res.status(404).send({ message: 'Menu item not found' });
+    }
+    res.send(item);
 })
 
 app.listen(port, () => {
