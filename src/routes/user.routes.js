@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { users } from "../db.js";
+import { users, findUserById } from "../db.js";
 import { requireAuth, requireRole, badRequest, forbidden } from "../middleware/auth.js";
 import { asyncHandler, HttpError } from "../middleware/errors.js";
 import { USER_ROLES } from "../constants.js";
@@ -49,7 +49,7 @@ router.get(
   requireAuth,
   requireRole("admin"),
   asyncHandler(async (req, res) => {
-    const user = await users().findOne({ _id: String(req.params.id) });
+    const user = await findUserById(req.params.id);
     if (!user) throw new HttpError(404, "User not found.");
     res.json({ user: asUser(user) });
   })
@@ -65,7 +65,7 @@ router.patch(
   requireRole("admin"),
   asyncHandler(async (req, res) => {
     const id = String(req.params.id);
-    const existing = await users().findOne({ _id: id });
+    const existing = await findUserById(id);
     if (!existing) throw new HttpError(404, "User not found.");
     if (id === req.user.id) return forbidden(res, "You can't block your own admin account.");
 
@@ -73,8 +73,8 @@ router.patch(
       return badRequest(res, "Expected a boolean `blocked` field.");
     }
 
-    await users().updateOne({ _id: id }, { $set: { isBlocked: req.body.blocked } });
-    const updated = await users().findOne({ _id: id });
+    await users().updateOne({ _id: existing._id }, { $set: { isBlocked: req.body.blocked } });
+    const updated = await users().findOne({ _id: existing._id });
     res.json({ user: asUser(updated) });
   })
 );

@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { Router } from "express";
-import { transactions, users } from "../db.js";
+import { transactions, users, findUserById } from "../db.js";
 import { requireAuth, requireRole, badRequest, forbidden } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/errors.js";
 import { PREMIUM_PRICE_CENTS, PREMIUM_DURATION_DAYS } from "../constants.js";
@@ -32,7 +32,7 @@ router.get(
   "/status",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const doc = await users().findOne({ _id: req.user.id });
+    const doc = await findUserById(req.user.id);
     const premium = hasActivePremium(req.user);
 
     let session = null;
@@ -77,7 +77,6 @@ router.post(
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card"],
       line_items: [
         {
           quantity: 1,
@@ -106,21 +105,23 @@ router.post(
  * POST /api/subscription/cancel — a vendor can end Premium at any time.
  * The plan drops back to free immediately (there is no partial refund).
  */
-router.post(
-  "/cancel",
-  requireAuth,
-  requireRole("vendor"),
-  asyncHandler(async (req, res) => {
-    if (!hasActivePremium(req.user)) {
-      return badRequest(res, "You don't have an active Premium subscription.");
-    }
-    await users().updateOne(
-      { _id: req.user.id },
-      { $set: { subscriptionPlan: "free", subscriptionExpiresAt: new Date().toISOString() } }
-    );
-    res.json({ plan: "free", expiresAt: new Date().toISOString() });
-  })
-);
+  router.post(
+    "/cancel",
+    requireAuth,
+    requireRole("vendor"),
+    asyncHandler(async (req, res) => {
+      if (!hasActivePremium(req.user)) {
+        return badRequest(res, "You don't have an active Premium subscription.");
+      }
+      const vendorDoc = await findUserById(req.user.id);
+      if (!vendorDoc) throw new Error("Vendor not found.");
+      await users().updateOne(
+        { _id: vendorDoc._id },
+        { $set: { subscriptionPlan: "free", subscriptionExpiresAt: new Date().toISOString() } }
+      );
+      res.json({ plan: "free", expiresAt: new Date().toISOString() });
+    })
+  );
 
 /** Records a verified Stripe payment — idempotent, keyed by the session id. */
 export async function recordSubscriptionPayment(session) {
@@ -128,7 +129,7 @@ export async function recordSubscriptionPayment(session) {
   if (!vendorId) return { ok: false, reason: "missing-vendor" };
 
   const expiresAt = await grantPremium(vendorId, { extendFromNow: true });
-  const vendor = await users().findOne({ _id: vendorId });
+  const vendor = await findUserById(vendorId);
 
   const now = new Date().toISOString();
   await transactions().updateOne(

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { users } from "../db.js";
+import { users, findUserById } from "../db.js";
 import { requireAuth, badRequest, forbidden } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/errors.js";
 import { isImageUrl } from "../validation.js";
@@ -15,7 +15,7 @@ router.get(
   "/",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const doc = await users().findOne({ _id: req.user.id });
+    const doc = await findUserById(req.user.id);
     res.json({
       user: {
         id: req.user.id,
@@ -84,8 +84,10 @@ router.patch(
       return badRequest(res, "No profile fields to update.");
     }
 
-    await users().updateOne({ _id: req.user.id }, { $set: patch });
-    const updated = await users().findOne({ _id: req.user.id });
+    const userDoc = await findUserById(req.user.id);
+    if (!userDoc) return badRequest(res, "Your account no longer exists.");
+    await users().updateOne({ _id: userDoc._id }, { $set: patch });
+    const updated = await findUserById(req.user.id);
 
     res.json({
       user: {

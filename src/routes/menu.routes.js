@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { menuItems, users } from "../db.js";
+import { menuItems, users, findUserById } from "../db.js";
 import { requireAuth, optionalAuth, requireRole, badRequest, forbidden, unauthorized } from "../middleware/auth.js";
 import { asyncHandler, HttpError } from "../middleware/errors.js";
 import { validateMenuItem } from "../validation.js";
@@ -256,7 +256,7 @@ router.patch(
 /** Free-plan cap when an admin publishes an item owned by a vendor. */
 async function exceedsFreeLimit(vendorId) {
   if (!vendorId) return false;
-  const vendor = await users().findOne({ _id: String(vendorId) });
+  const vendor = await findUserById(vendorId);
   if (!vendor) return false;
   if (vendor.subscriptionPlan === "premium") {
     const expires = vendor.subscriptionExpiresAt ? new Date(vendor.subscriptionExpiresAt) : null;

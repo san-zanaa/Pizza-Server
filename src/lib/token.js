@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
+import { findUserById } from "../db.js";
 
 /**
  * HS256 JWT helpers.

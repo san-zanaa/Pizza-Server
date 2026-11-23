@@ -1,5 +1,5 @@
 import { verifyToken } from "../lib/token.js";
-import { users } from "../db.js";
+import { findUserById } from "../db.js";
 
 /** 401 for missing/invalid credentials, 403 for known-but-forbidden ones. */
 
@@ -39,7 +39,7 @@ export async function requireAuth(req, res, next) {
       return unauthorized(res, "Your session has expired. Please sign in again.");
     }
 
-    const user = await users().findOne({ _id: String(claims.sub) });
+    const user = await findUserById(claims.sub);
     if (!user) return unauthorized(res, "Your account no longer exists.");
 
     req.user = {
@@ -72,7 +72,7 @@ export async function optionalAuth(req, _res, next) {
     if (token) {
       try {
         const claims = await verifyToken(token);
-        const user = await users().findOne({ _id: String(claims.sub) });
+        const user = await findUserById(claims.sub);
         if (user && user.isBlocked !== true) {
           req.user = {
             id: String(user._id),

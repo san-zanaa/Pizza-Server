@@ -1,4 +1,4 @@
-import { menuItems, users } from "../db.js";
+import { menuItems, users, findUserById } from "../db.js";
 import { FREE_PLAN_ACTIVE_LIMIT, PREMIUM_DURATION_DAYS } from "../constants.js";
 
 /** Premium is time-boxed: an expired subscription silently falls back to free. */
@@ -27,7 +27,7 @@ export async function canPublishMore(user) {
 
 /** Extends a vendor's premium subscription by PREMIUM_DURATION_DAYS from now (or later). */
 export async function grantPremium(vendorId, { extendFromNow = true } = {}) {
-  const current = await users().findOne({ _id: String(vendorId) });
+  const current = await findUserById(vendorId);
   const now = Date.now();
   let base = now;
   if (!extendFromNow && current?.subscriptionExpiresAt) {
@@ -36,22 +36,24 @@ export async function grantPremium(vendorId, { extendFromNow = true } = {}) {
   }
   const expiresAt = new Date(base + PREMIUM_DURATION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  await users().updateOne(
-    { _id: String(vendorId) },
-    { $set: { subscriptionPlan: "premium", subscriptionExpiresAt: expiresAt } }
-  );
+  if (current) {
+    await users().updateOne(
+      { _id: current._id },
+      { $set: { subscriptionPlan: "premium", subscriptionExpiresAt: expiresAt } }
+    );
+  }
   return expiresAt;
 }
 
 export async function downgradeIfExpired(vendorId) {
-  const user = await users().findOne({ _id: String(vendorId) });
+  const user = await findUserById(vendorId);
   if (!user) return null;
   if (user.subscriptionPlan !== "premium") return user;
   if (!user.subscriptionExpiresAt) return user;
   const expired = new Date(user.subscriptionExpiresAt).getTime() <= Date.now();
   if (!expired) return user;
   await users().updateOne(
-    { _id: String(vendorId) },
+    { _id: user._id },
     { $set: { subscriptionPlan: "free" } }
   );
   return { ...user, subscriptionPlan: "free", plan: "free" };
