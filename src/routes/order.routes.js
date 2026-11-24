@@ -115,6 +115,96 @@ router.post(
 );
 
 /**
+ * POST /api/orders/combo — order two dishes together as a combo.
+ * Applies a flat 100 tk discount to the combined total (taken off the
+ * first item's charged price) and creates one pending order per dish so
+ * each vendor can accept/reject independently.
+ */
+router.post(
+  "/combo",
+  requireAuth,
+  requireRole("customer"),
+  asyncHandler(async (req, res) => {
+    const body = req.body ?? {};
+    const itemIds = Array.isArray(body.itemIds)
+      ? body.itemIds.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean)
+      : [];
+    const deliveryDate = typeof body.deliveryDate === "string" ? body.deliveryDate.trim() : "";
+    const deliveryAddress =
+      typeof body.deliveryAddress === "string" ? body.deliveryAddress.trim() : "";
+    const message = typeof body.message === "string" ? body.message.trim().slice(0, 1000) : "";
+
+    if (itemIds.length !== 2) return badRequest(res, "A combo needs exactly two dishes.");
+    if (new Set(itemIds).size !== 2) return badRequest(res, "Combo dishes must be different.");
+    if (!isFutureDate(deliveryDate)) {
+      return badRequest(res, "A valid delivery date (today or later) is required.");
+    }
+    if (deliveryAddress.length < 5) {
+      return badRequest(res, "Enter a delivery address (at least 5 characters).");
+    }
+
+    const items = await Promise.all(itemIds.map((id) => findMenuItemById(id)));
+    if (items.some((it) => !it)) throw new HttpError(404, "One of the combo dishes was not found.");
+    if (items.some((it) => it.status !== "approved")) {
+      return badRequest(res, "One of the combo dishes isn't available for ordering.");
+    }
+    if (items.some((it) => String(it.vendorId) === req.user.id)) {
+      return forbidden(res, "You can't order an item from your own menu.");
+    }
+
+    const COMBO_DISCOUNT = 100;
+    const total = items[0].price + items[1].price;
+    const discount = Math.min(COMBO_DISCOUNT, total);
+    // Apply the discount to the first item (floored at 0).
+    const chargedFirst = Math.max(0, items[0].price - discount);
+
+    const now = new Date().toISOString();
+    const ordersToInsert = items.map((item, index) => {
+      const isCombo = true;
+      const order = {
+        _id: crypto.randomUUID(),
+        itemId: item._id ? String(item._id) : item.id,
+        itemName: item.itemName,
+        itemImage: item.images?.[0] ?? "",
+        itemPrice: index === 0 ? chargedFirst : item.price,
+        comboOriginalPrice: item.price,
+        comboDiscount: discount,
+        comboPartnerItemId: itemIds[index === 0 ? 1 : 0],
+        isCombo,
+        vendorId: String(item.vendorId ?? ""),
+        vendorName: item.vendorName ?? "",
+        customerId: req.user.id,
+        customerName: req.user.name,
+        customerEmail: req.user.email,
+        deliveryDate,
+        deliveryAddress,
+        message,
+        status: "pending",
+        createdAt: now,
+        updatedAt: now,
+      };
+      return order;
+    });
+
+    // Duplicate guard per item + delivery date.
+    for (const o of ordersToInsert) {
+      const dup = await orders().findOne({
+        itemId: o.itemId,
+        customerId: req.user.id,
+        deliveryDate,
+        status: { $in: ["pending", "accepted"] },
+      });
+      if (dup) {
+        return badRequest(res, `You already have an active order for ${o.itemName} on that delivery date.`);
+      }
+    }
+
+    await orders().insertMany(ordersToInsert);
+    res.status(201).json({ orders: ordersToInsert.map(sanitize), comboDiscount: discount });
+  })
+);
+
+/**
  * PATCH /api/orders/:id — the only status transitions allowed:
  *  - vendor owner: pending → accepted | rejected   (exactly once)
  *  - customer owner: pending → cancelled
