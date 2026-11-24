@@ -45,16 +45,3 @@ export async function grantPremium(vendorId, { extendFromNow = true } = {}) {
   return expiresAt;
 }
 
-export async function downgradeIfExpired(vendorId) {
-  const user = await findUserById(vendorId);
-  if (!user) return null;
-  if (user.subscriptionPlan !== "premium") return user;
-  if (!user.subscriptionExpiresAt) return user;
-  const expired = new Date(user.subscriptionExpiresAt).getTime() <= Date.now();
-  if (!expired) return user;
-  await users().updateOne(
-    { _id: user._id },
-    { $set: { subscriptionPlan: "free" } }
-  );
-  return { ...user, subscriptionPlan: "free", plan: "free" };
-}
