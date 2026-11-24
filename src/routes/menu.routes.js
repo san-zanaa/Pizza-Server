@@ -3,7 +3,7 @@ import { menuItems, users, findUserById } from "../db.js";
 import { requireAuth, optionalAuth, requireRole, badRequest, forbidden, unauthorized } from "../middleware/auth.js";
 import { asyncHandler, HttpError } from "../middleware/errors.js";
 import { validateMenuItem } from "../validation.js";
-import { FREE_PLAN_ACTIVE_LIMIT, MENU_CATEGORIES } from "../constants.js";
+import { FREE_PLAN_ACTIVE_LIMIT, MENU_CATEGORIES, MENU_STATUSES } from "../constants.js";
 import { activeCountForVendor, canPublishMore, hasActivePremium } from "../services/plan.js";
 
 const router = Router();
@@ -73,6 +73,13 @@ router.get(
     const { scope, q, category, location, status, limit, sort } = req.query;
     const filter = {};
 
+    if (scope !== undefined && scope !== "admin" && scope !== "mine") {
+      throw new HttpError(400, "Invalid scope.");
+    }
+    if (status !== undefined && !MENU_STATUSES.includes(status)) {
+      throw new HttpError(400, "Invalid status filter.");
+    }
+
     if (scope === "admin") {
       if (!req.user) throw new HttpError(401, "You must be signed in to do that.");
       if (req.user.role !== "admin") throw new HttpError(403, "Admin access required.");
@@ -98,11 +105,12 @@ router.get(
     items.sort(byId);
 
     const parsedLimit = Number(limit);
+    if (limit !== undefined && (!Number.isFinite(parsedLimit) || parsedLimit < 1)) {
+      throw new HttpError(400, "Invalid limit.");
+    }
     if (Number.isFinite(parsedLimit) && parsedLimit >= 1) {
       items = items.slice(0, Math.min(Math.floor(parsedLimit), 100));
     }
-
-    items = applySort(items, sort);
 
     res.json({ items: items.map(sanitize) });
   })
