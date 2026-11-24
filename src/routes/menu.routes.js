@@ -30,15 +30,47 @@ function byId(a, b) {
 }
 
 /**
+ * Sorting for the menu list.
+ * Accepted: "price_asc", "price_desc", "name_asc", "name_desc",
+ * "location_asc", "createdAt_asc", "createdAt_desc". Anything else → default.
+ */
+function applySort(items, sort) {
+  const key = String(sort ?? "").trim().toLowerCase();
+  const fieldMap = {
+    price_asc: "price",
+    price_desc: "price",
+    name_asc: "itemName",
+    name_desc: "itemName",
+    location_asc: "location",
+    location_desc: "location",
+    createdat_asc: "createdAt",
+    createdat_desc: "createdAt",
+  };
+  const field = fieldMap[key];
+  if (!field) return items;
+
+  const desc = key.endsWith("_desc");
+  const a = items.map((item) => ({ item, field: item[field] ?? "" }));
+  a.sort((x, y) => {
+    const result =
+      typeof x.field === "number" && typeof y.field === "number"
+        ? x.field - y.field
+        : String(x.field).localeCompare(String(y.field));
+    return desc ? -result : result;
+  });
+  return a.map((entry) => entry.item);
+}
+
+/**
  * GET /api/menu
  * scope: "admin" (all, admin only) | "mine" (own, vendor only) | undefined (public: approved only)
- * q, category, location, status, limit
+ * q, category, location, status, limit, sort
  */
 router.get(
   "/",
   optionalAuth,
   asyncHandler(async (req, res) => {
-    const { scope, q, category, location, status, limit } = req.query;
+    const { scope, q, category, location, status, limit, sort } = req.query;
     const filter = {};
 
     if (scope === "admin") {
@@ -69,6 +101,8 @@ router.get(
     if (Number.isFinite(parsedLimit) && parsedLimit >= 1) {
       items = items.slice(0, Math.min(Math.floor(parsedLimit), 100));
     }
+
+    items = applySort(items, sort);
 
     res.json({ items: items.map(sanitize) });
   })
