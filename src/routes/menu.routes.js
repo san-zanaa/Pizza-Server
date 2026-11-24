@@ -112,6 +112,8 @@ router.get(
       items = items.slice(0, Math.min(Math.floor(parsedLimit), 100));
     }
 
+    items = applySort(items, sort);
+
     res.json({ items: items.map(sanitize) });
   })
 );
