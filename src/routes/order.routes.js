@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { menuItems, orders } from "../db.js";
+import { orders } from "../db.js";
+import { findMenuItemById } from "./menu.routes.js";
 import { requireAuth, requireRole, badRequest, forbidden } from "../middleware/auth.js";
 import { asyncHandler, HttpError } from "../middleware/errors.js";
 import { isFutureDate } from "../validation.js";
@@ -61,7 +62,9 @@ router.post(
       return badRequest(res, "Enter a delivery address (at least 5 characters).");
     }
 
-    const item = await menuItems().findOne({ _id: itemId });
+    // Seeded items store `_id` as an ObjectId while API-created ones use a
+    // uuid string — `findMenuItemById` matches both.
+    const item = await findMenuItemById(itemId);
     if (!item) throw new HttpError(404, "Menu item not found.");
     if (item.status !== "approved") {
       return badRequest(res, "This item is not available for ordering.");
