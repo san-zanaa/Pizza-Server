@@ -1,16 +1,6 @@
 import "dotenv/config";
 import { connectToDatabase, closeDatabase, menuItems, users, orders, transactions } from "../src/db.js";
 
-/**
- * One-time (idempotent) migration to the schema in the assignment's
- * "Database design (MongoDB)" table:
- *
- *   menuItems: vendorId, itemName, category, description, price, location,
- *              images[], status(pending|approved|rejected|inactive), createdAt
- *   users:     isBlocked, businessName, subscriptionPlan, subscriptionExpiresAt
- *
- * Run with:  npm run migrate   (from assignment-9-server/)
- */
 
 const SEED_VENDOR_ID = "seed-pizzahub-kitchen";
 const SEED_VENDOR_NAME = "PizzaHub Kitchen";
@@ -37,7 +27,6 @@ const SPEC_CATEGORIES = [
 const MEAT_RX = /(pepperoni|chicken|beef|meat|sausage|bacon|lamb|kebab|bbq|tandoori)/i;
 const VEG_RX = /(veggie|vegetarian|cheese|margherita|mushroom|paneer|potato|onion|spinach|corn|caprese|feta)/i;
 
-/** Splits the seeded "Pizzas" bucket into the three pizza categories from the spec. */
 function refinePizzaCategory(itemName) {
   const name = String(itemName ?? "");
   if (MEAT_RX.test(name)) return "Meat Lovers";
@@ -46,7 +35,7 @@ function refinePizzaCategory(itemName) {
 }
 
 function normalizeStatus(existing) {
-  if (!existing) return "approved"; // legacy seed items are published so the shop isn't empty
+  if (!existing) return "approved"; 
   const status = String(existing).toLowerCase();
   if (status === "pending") return "pending";
   if (status === "approved") return "approved";
