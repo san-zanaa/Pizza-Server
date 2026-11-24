@@ -325,7 +325,7 @@ router.delete(
       return forbidden(res, "You can only delete your own menu items.");
     }
 
-    await menuItems().deleteOne({ _id: id });
+    await menuItems().deleteOne({ _id: existing._id });
     res.json({ ok: true });
   })
 );
