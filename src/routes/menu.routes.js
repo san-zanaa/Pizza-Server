@@ -86,7 +86,9 @@ router.get(
       if (status) filter.status = status;
     } else if (scope === "mine") {
       if (!req.user) throw new HttpError(401, "You must be signed in to do that.");
-      if (req.user.role !== "vendor") throw new HttpError(403, "Vendor access required.");
+      if (req.user.role !== "vendor" && req.user.role !== "admin") {
+        throw new HttpError(403, "Vendor access required.");
+      }
       filter.vendorId = req.user.id;
       if (status) filter.status = status;
     } else {

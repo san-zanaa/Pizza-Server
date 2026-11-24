@@ -24,8 +24,11 @@ router.get(
     const filter = {};
 
     if (scope === "vendor") {
-      if (req.user.role !== "vendor") return forbidden(res, "Vendor access required.");
-      filter.vendorId = req.user.id;
+      if (req.user.role !== "admin" && req.user.role !== "vendor") {
+        return forbidden(res, "Vendor access required.");
+      }
+      // admins may inspect the vendor queue without being narrowed to one vendor
+      if (req.user.role !== "admin") filter.vendorId = req.user.id;
     } else if (scope === "all") {
       if (req.user.role !== "admin") return forbidden(res, "Admin access required.");
     } else {
