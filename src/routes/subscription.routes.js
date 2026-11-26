@@ -23,7 +23,7 @@ export function stripeNotConfigured(res) {
   });
 }
 
-const clientUrl = () => process.env.CLIENT_URL?.trim() || "http://localhost:3000";
+export const clientUrl = () => process.env.CLIENT_URL?.trim() || "http://localhost:3000";
 
 const asTransaction = (doc) => (doc ? { ...doc, _id: String(doc._id) } : null);
 

@@ -1,6 +1,7 @@
 import { Router, raw } from "express";
 import { transactions } from "../db.js";
 import { getStripe, stripeNotConfigured, recordSubscriptionPayment } from "./subscription.routes.js";
+import { fulfillOrderSession } from "./order.routes.js";
 
 /**
  * POST /api/webhooks/stripe
@@ -35,9 +36,16 @@ router.post("/stripe", raw({ type: "application/json" }), async (req, res) => {
       case "checkout.session.completed": {
         const session = event.data.object;
         if (session.payment_status === "paid" || session.status === "complete") {
-          const result = await recordSubscriptionPayment(session);
-          if (!result.ok) {
-            return res.status(400).json({ error: `Could not apply payment: ${result.reason}` });
+          if (session.metadata?.type === "order") {
+            const result = await fulfillOrderSession(session);
+            if (!result.ok && result.reason !== "duplicate") {
+              return res.status(400).json({ error: `Could not apply payment: ${result.reason}` });
+            }
+          } else {
+            const result = await recordSubscriptionPayment(session);
+            if (!result.ok) {
+              return res.status(400).json({ error: `Could not apply payment: ${result.reason}` });
+            }
           }
         }
         break;
